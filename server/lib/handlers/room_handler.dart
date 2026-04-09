@@ -86,8 +86,7 @@ Router buildRouter() {
           messageCount++;
 
           if (messageCount > ServerConfig.maxMessagesPerSecond) {
-            channel.sink.close(4029, 'Rate limit exceeded');
-            return;
+            return; // drop message silently, don't kill the connection
           }
 
           if (data is! Uint8List) {

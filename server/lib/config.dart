@@ -7,7 +7,7 @@ abstract final class ServerConfig {
   static const maxClientsPerRoom = 20;
 
   /// Max WebSocket messages per second per client before being kicked
-  static const maxMessagesPerSecond = 60;
+  static const maxMessagesPerSecond = 1000;
 
   /// Max HTTP request body size in bytes (1 KB is plenty for our JSON)
   static const maxBodyBytes = 1024;
