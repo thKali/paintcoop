@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/room.dart';
 import '../services/api_service.dart';
-import 'canvas_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -55,9 +55,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _enterRoom(String code) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CanvasPage(roomCode: code)),
-    );
+    context.go('/room/$code');
   }
 
   @override

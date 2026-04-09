@@ -1,6 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'pages/canvas_page.dart';
 import 'pages/home_page.dart';
+
+final _router = GoRouter(
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/room/:code',
+      builder: (_, state) {
+        final code = state.pathParameters['code']!.toUpperCase();
+        return CanvasPage(roomCode: code);
+      },
+    ),
+  ],
+);
 
 void main() {
   runApp(const App());
@@ -11,15 +28,10 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Check if the URL has ?room=CODE — e.g. from a shared invite link
-    final roomCode = Uri.base.queryParameters['room']?.toUpperCase();
-
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'VectorStream',
       theme: ThemeData.dark(),
-      home: roomCode != null && roomCode.length == 6
-          ? CanvasPage(roomCode: roomCode)
-          : const HomePage(),
+      routerConfig: _router,
     );
   }
 }
