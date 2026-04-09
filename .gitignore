@@ -1,0 +1,19 @@
+# Dart/Flutter
+.dart_tool/
+.packages
+build/
+*.g.dart
+
+# Server compiled output
+server/bin/server
+
+# Flutter web build
+client/build/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# macOS
+.DS_Store
