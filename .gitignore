@@ -17,3 +17,6 @@ client/build/
 
 # macOS
 .DS_Store
+
+# Claude Code
+.claude/
