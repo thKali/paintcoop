@@ -9,16 +9,23 @@ class SocketService {
   WebSocketChannel? _channel;
   final _incomingController = StreamController<List<CanvasMessage>>.broadcast();
 
+  Timer? _reconnectTimer;
+  int _reconnectDelaySecs = 1;
+  bool _disposed = false;
+
   SocketService(this._url);
 
   // The UI listens to this — receives a batch of messages every tick
   Stream<List<CanvasMessage>> get incoming => _incomingController.stream;
 
   void connect() {
+    if (_disposed) return;
+
     _channel = WebSocketChannel.connect(Uri.parse(_url));
 
     _channel!.stream.listen(
       (data) {
+        _reconnectDelaySecs = 1; // reset backoff on successful data
         if (data is! Uint8List) return;
 
         final messages = decodeWorldState(data);
@@ -27,9 +34,25 @@ class SocketService {
         print('[<] Received tick: ${messages.length} events');
         _incomingController.add(messages);
       },
-      onDone: () => print('[socket] Disconnected'),
-      onError: (e) => print('[socket] Error: $e'),
+      onDone: () {
+        print('[socket] Disconnected, reconnecting in ${_reconnectDelaySecs}s...');
+        _scheduleReconnect();
+      },
+      onError: (e) {
+        print('[socket] Error: $e, reconnecting in ${_reconnectDelaySecs}s...');
+        _scheduleReconnect();
+      },
     );
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed) return;
+    _channel = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(Duration(seconds: _reconnectDelaySecs), () {
+      _reconnectDelaySecs = (_reconnectDelaySecs * 2).clamp(1, 30);
+      connect();
+    });
   }
 
   void sendPenDown() {
@@ -49,6 +72,8 @@ class SocketService {
   }
 
   void disconnect() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
     _channel?.sink.close();
     _incomingController.close();
   }
