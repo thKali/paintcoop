@@ -79,7 +79,7 @@ Response buildDashboardResponse(Request req) {
     <div class="stat"><div class="stat-label">Clients online</div><div class="stat-value">$totalClients</div></div>
     <div class="stat"><div class="stat-label">Total history events</div><div class="stat-value">${_fmtNum(totalEvents)}</div></div>
     <div class="stat"><div class="stat-label">History memory</div><div class="stat-value">${_fmtBytes(totalBytes)}</div></div>
-    <div class="stat"><div class="stat-label">Cap / target</div><div class="stat-value">${_fmtNum(ServerConfig.maxClientsPerRoom)} clients</div></div>
+    <div class="stat"><div class="stat-label">Max clients/room</div><div class="stat-value">${ServerConfig.maxClientsPerRoom}</div></div>
   </div>
 
   ${rooms.isEmpty ? '<p class="empty">No active rooms.</p>' : '''
@@ -92,7 +92,6 @@ Response buildDashboardResponse(Request req) {
         <th>History events</th>
         <th>History memory</th>
         <th>World state</th>
-        <th>Last compress</th>
         <th>Age</th>
         <th>Empty since</th>
       </tr>
@@ -102,7 +101,7 @@ $rows
     </tbody>
   </table>'''}
 
-  <footer>history cap: ${_fmtNum(_historyCap)} &bull; target after compress: ${_fmtNum(_historyTarget)} &bull; 11 bytes/event</footer>
+  <footer>compression: every 2min &bull; ~11 bytes/event (wire)</footer>
 </body>
 </html>''';
 
@@ -118,13 +117,9 @@ bool _checkBasicAuth(String header) {
 }
 
 String _roomRow(Room r, DateTime now) {
-  final pct = r.history.length / _historyCap;
-  final barClass = pct > 0.85 ? 'crit' : pct > 0.6 ? 'warn' : '';
-  final barWidth = (pct * 100).clamp(0, 100).toStringAsFixed(1);
   final typeTag = r.isPrivate
       ? '<span class="tag tag-priv">private</span>'
       : '<span class="tag tag-pub">public</span>';
-  final lastCompress = r.stats['lastCapCompress'] as String?;
   final emptyAt = r.lastEmptyAt;
   final age = _ago(r.createdAt, now);
 
@@ -132,13 +127,9 @@ String _roomRow(Room r, DateTime now) {
         <td class="code">${r.code}</td>
         <td>$typeTag</td>
         <td>${r.clientCount} / ${ServerConfig.maxClientsPerRoom}</td>
-        <td>
-          ${_fmtNum(r.history.length)} / ${_fmtNum(_historyCap)}
-          <span class="bar-wrap"><span class="bar $barClass" style="width:$barWidth%"></span></span>
-        </td>
+        <td>${_fmtNum(r.history.length)}</td>
         <td>${_fmtBytes(r.history.length * 11)}</td>
         <td>${r.worldState.length} events</td>
-        <td class="ts">${lastCompress != null ? '${_ago(DateTime.parse(lastCompress), now)} ago' : '&mdash;'}</td>
         <td class="ts">$age ago</td>
         <td class="ts">${emptyAt != null ? '${_ago(emptyAt, now)} ago' : 'occupied'}</td>
       </tr>''';
@@ -170,6 +161,3 @@ String _fmtBytes(int bytes) {
   return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
 }
 
-// Expose constants from room.dart for the footer
-const _historyCap = 10000;
-const _historyTarget = 4000;

@@ -6,8 +6,6 @@ import '../services/douglas_peucker.dart';
 const _tickInterval = Duration(milliseconds: 1000 ~/ 30); // 30Hz
 const _compressInterval = Duration(minutes: 2);
 const _compressEpsilon = 2.5; // pixels — lower = more precise, higher = more compressed
-const _historyCap = 10000; // hard ceiling before compression kicks in
-const _historyTarget = 4000; // target after compression+trim — ensures headroom before next cap hit
 
 class Room {
   final String code;
@@ -20,7 +18,8 @@ class Room {
   final history = <(int, CanvasMessage)>[];
 
   DateTime? lastEmptyAt;
-  DateTime? _lastCapCompress;
+  // Debounce timers for per-sender erase flush (keyed by clientId)
+  final _eraseFlush = <int, Timer>{};
 
   late final Timer _ticker;
   late final Timer _compressor;
@@ -42,11 +41,8 @@ class Room {
     'historyEvents': history.length,
     'historyBytes': history.length * 11, // 11 bytes per event (wire format)
     'worldStateEvents': worldState.length,
-    'historyCap': _historyCap,
-    'historyTarget': _historyTarget,
     'createdAt': createdAt.toIso8601String(),
     'lastEmptyAt': lastEmptyAt?.toIso8601String(),
-    'lastCapCompress': _lastCapCompress?.toIso8601String(),
   };
 
   void _tick() {
@@ -133,34 +129,7 @@ class Room {
       ..clear()
       ..addAll(compressed);
 
-    // If DP barely helped (already-compressed strokes dominate), trim the
-    // oldest complete strokes to restore headroom. Without this, the cap gets
-    // hit on every event and compression runs O(n) continuously.
-    if (history.length > _historyTarget) {
-      _trimToTarget(_historyTarget);
-    }
-
-    print('[compress] room $code: $before → ${history.length} events (after trim)');
-  }
-
-  // Removes oldest complete strokes (and standalone erase/clear events) until
-  // history.length <= target. Cuts on penDown/erase/clear boundaries so we
-  // never leave orphaned draw events without a preceding penDown.
-  void _trimToTarget(int target) {
-    final excess = history.length - target;
-    // Scan forward to find a clean cut point past `excess` entries.
-    // We stop at the next penDown/erase/clear so we don't strand draw events.
-    var cutAt = excess;
-    while (cutAt < history.length) {
-      final type = history[cutAt].$2.type;
-      if (type == MessageType.penDown ||
-          type == MessageType.erase ||
-          type == MessageType.clear) { break; }
-      cutAt++;
-    }
-    if (cutAt > 0 && cutAt <= history.length) {
-      history.removeRange(0, cutAt);
-    }
+    print('[compress] room $code: $before → ${history.length} events');
   }
 
   void _broadcastNow(List<(int, CanvasMessage)> events) {
@@ -195,26 +164,102 @@ class Room {
 
   void receive(int clientId, CanvasMessage message) {
     worldState.add((clientId, message));
-    // Cursor events are ephemeral — no need to replay them to new clients
-    if (message.type != MessageType.cursor) {
-      history.add((clientId, message));
+
+    switch (message.type) {
+      case MessageType.cursor:
+        break; // ephemeral, not stored
+      case MessageType.clear:
+        // Remove all of this sender's draw history immediately — no need to
+        // store the clear event itself since the absence of draws is enough.
+        history.removeWhere((e) =>
+            e.$1 == clientId &&
+            (e.$2.type == MessageType.penDown ||
+                e.$2.type == MessageType.draw ||
+                e.$2.type == MessageType.erase));
+      case MessageType.erase:
+        // Store the event so it's available for the debounced flush below.
+        history.add((clientId, message));
+        // Debounce: flush erase geometry 1s after the last erase from this sender.
+        _eraseFlush[clientId]?.cancel();
+        _eraseFlush[clientId] = Timer(
+          const Duration(seconds: 1),
+          () => _flushErase(clientId),
+        );
+      default:
+        history.add((clientId, message));
     }
 
-    // Hard cap — compress when ceiling is hit, but at most once per interval
-    // to avoid O(n) compression on every event when the board is very full.
-    if (history.length >= _historyCap) {
-      final now = DateTime.now();
-      if (_lastCapCompress == null ||
-          now.difference(_lastCapCompress!) >= _compressInterval) {
-        _lastCapCompress = now;
-        _compress();
+  }
+
+  // Applies all pending erase events for [clientId] geometrically to history,
+  // then removes the erase events themselves. Called 1s after last erase.
+  void _flushErase(int clientId) {
+    _eraseFlush.remove(clientId);
+    const eraseR2 = 20.0 * 20.0;
+
+    // Collect erase circles for this sender
+    final circles = history
+        .where((e) => e.$1 == clientId && e.$2.type == MessageType.erase)
+        .map((e) => (e.$2.x, e.$2.y))
+        .toList();
+
+    if (circles.isEmpty) return;
+
+    // Rebuild history: apply all erase circles to this sender's strokes
+    final next = <(int, CanvasMessage)>[];
+    var seg = <CanvasMessage>[];
+    int? segSender;
+
+    void flushSeg() {
+      if (seg.isNotEmpty && segSender != null) {
+        next.add((segSender!, const CanvasMessage(type: MessageType.penDown, x: 0, y: 0)));
+        next.addAll(seg.map((m) => (segSender!, m)));
+        seg = [];
+        segSender = null;
       }
     }
+
+    for (final (sender, msg) in history) {
+      if (sender != clientId) {
+        flushSeg();
+        next.add((sender, msg));
+        continue;
+      }
+      switch (msg.type) {
+        case MessageType.erase:
+          break; // consumed
+        case MessageType.penDown:
+          flushSeg();
+          segSender = sender;
+        case MessageType.draw:
+          if (segSender != null) {
+            final erased = circles.any((c) {
+              final dx = msg.x - c.$1, dy = msg.y - c.$2;
+              return dx * dx + dy * dy <= eraseR2;
+            });
+            if (erased) {
+              flushSeg(); // break the stroke here
+            } else {
+              seg.add(msg);
+            }
+          }
+        default:
+          flushSeg();
+          next.add((sender, msg));
+      }
+    }
+    flushSeg();
+
+    history
+      ..clear()
+      ..addAll(next);
   }
 
   void dispose() {
     _ticker.cancel();
     _compressor.cancel();
+    for (final t in _eraseFlush.values) { t.cancel(); }
+    _eraseFlush.clear();
     for (final client in clients.values) {
       client.sink.close();
     }
