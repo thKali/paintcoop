@@ -18,8 +18,9 @@ class CanvasMessage {
   final MessageType type;
   final double x;
   final double y;
+  final int senderId; // set by decodeWorldState; 0 for locally sent messages
 
-  const CanvasMessage({required this.type, required this.x, required this.y});
+  const CanvasMessage({required this.type, required this.x, required this.y, this.senderId = 0});
 
   // Encode a single event to send to the server
   // Layout: [type(1)] [x float32(4)] [y float32(4)]
@@ -33,7 +34,8 @@ class CanvasMessage {
 }
 
 // Decode a broadcast frame from the server
-// Layout: [count uint16(2)] [msg1(9)] [msg2(9)] ... [msgN(9)]
+// Layout: [count uint16(2)] [clientId uint16(2) + type(1) + x float32(4) + y float32(4)] * N
+// = 11 bytes per message
 List<CanvasMessage> decodeWorldState(Uint8List bytes) {
   if (bytes.length < 2) return [];
 
@@ -43,17 +45,18 @@ List<CanvasMessage> decodeWorldState(Uint8List bytes) {
   final messages = <CanvasMessage>[];
 
   for (var i = 0; i < count; i++) {
-    final offset = 2 + i * 9;
-    if (offset + 9 > bytes.length) break;
+    final offset = 2 + i * 11;
+    if (offset + 11 > bytes.length) break;
 
-    final typeByte = view.getUint8(offset);
+    final senderId = view.getUint16(offset, Endian.big);
+    final typeByte = view.getUint8(offset + 2);
     final type = MessageType.fromByte(typeByte);
     if (type == null) continue;
 
-    final x = view.getFloat32(offset + 1, Endian.big);
-    final y = view.getFloat32(offset + 5, Endian.big);
+    final x = view.getFloat32(offset + 3, Endian.big);
+    final y = view.getFloat32(offset + 7, Endian.big);
 
-    messages.add(CanvasMessage(type: type, x: x, y: y));
+    messages.add(CanvasMessage(type: type, x: x, y: y, senderId: senderId));
   }
 
   return messages;

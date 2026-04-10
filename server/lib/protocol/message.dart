@@ -38,27 +38,30 @@ class CanvasMessage {
     return CanvasMessage(type: type, x: x, y: y);
   }
 
-  // Encode a single message into 9 bytes
-  void encodeTo(ByteData view, int offset) {
-    view.setUint8(offset, type.byte);
-    view.setFloat32(offset + 1, x, Endian.big);
-    view.setFloat32(offset + 5, y, Endian.big);
+  // Encode a single message into 11 bytes (clientId + type + x + y)
+  void encodeTo(ByteData view, int offset, int clientId) {
+    view.setUint16(offset, clientId, Endian.big);
+    view.setUint8(offset + 2, type.byte);
+    view.setFloat32(offset + 3, x, Endian.big);
+    view.setFloat32(offset + 7, y, Endian.big);
   }
 
   @override
   String toString() => 'CanvasMessage(type: $type, x: $x, y: $y)';
 }
 
-// Serializes a list of messages into a broadcast frame:
-// Layout: [count uint16(2)] [msg1(9)] [msg2(9)] ... [msgN(9)]
-Uint8List encodeWorldState(List<CanvasMessage> messages) {
-  final totalBytes = 2 + messages.length * 9;
+// Serializes a list of (clientId, message) pairs into a broadcast frame:
+// Layout: [count uint16(2)] [clientId uint16(2) + type(1) + x float32(4) + y float32(4)] * N
+// = 11 bytes per message
+Uint8List encodeWorldState(List<(int, CanvasMessage)> messages) {
+  final totalBytes = 2 + messages.length * 11;
   final view = ByteData(totalBytes);
 
   view.setUint16(0, messages.length, Endian.big);
 
   for (var i = 0; i < messages.length; i++) {
-    messages[i].encodeTo(view, 2 + i * 9);
+    final (clientId, msg) = messages[i];
+    msg.encodeTo(view, 2 + i * 11, clientId);
   }
 
   return view.buffer.asUint8List();

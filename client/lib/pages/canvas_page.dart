@@ -16,7 +16,7 @@ class CanvasPage extends StatefulWidget {
 
 class _CanvasPageState extends State<CanvasPage> {
   late final SocketService _socket;
-  final List<List<Offset>> _strokes = [];
+  final List<(int senderId, List<Offset> points)> _strokes = [];
   bool _codeVisible = false;
 
   @override
@@ -29,9 +29,10 @@ class _CanvasPageState extends State<CanvasPage> {
       setState(() {
         for (final msg in messages) {
           if (msg.type == MessageType.penDown) {
-            _strokes.add([]);
-          } else if (msg.type == MessageType.draw && _strokes.isNotEmpty) {
-            _strokes.last.add(Offset(msg.x, msg.y));
+            _strokes.add((msg.senderId, []));
+          } else if (msg.type == MessageType.draw) {
+            final idx = _strokes.lastIndexWhere((s) => s.$1 == msg.senderId);
+            if (idx >= 0) _strokes[idx].$2.add(Offset(msg.x, msg.y));
           }
         }
       });
@@ -178,24 +179,32 @@ class _RoomCodeBadge extends StatelessWidget {
 // Blur amount for the hidden code
 final _blurFilter = ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6);
 
+// Cache so paint() doesn't allocate a new Color object per stroke per frame.
+final _senderColors = <int, Color>{};
+
+Color _colorForSender(int senderId) => _senderColors.putIfAbsent(senderId, () {
+      final hue = (senderId * 137.508) % 360;
+      return HSLColor.fromAHSL(1.0, hue, 0.75, 0.62).toColor();
+    });
+
 class CanvasPainter extends CustomPainter {
-  final List<List<Offset>> strokes;
+  final List<(int senderId, List<Offset> points)> strokes;
 
   CanvasPainter({required this.strokes});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white
       ..strokeWidth = 3.0
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    for (final stroke in strokes) {
-      if (stroke.length < 2) continue;
-      final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
-      for (var i = 1; i < stroke.length; i++) {
-        path.lineTo(stroke[i].dx, stroke[i].dy);
+    for (final (senderId, points) in strokes) {
+      if (points.length < 2) continue;
+      paint.color = _colorForSender(senderId);
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (var i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
       }
       canvas.drawPath(path, paint);
     }
