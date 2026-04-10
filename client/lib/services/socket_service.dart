@@ -8,6 +8,7 @@ class SocketService {
 
   WebSocketChannel? _channel;
   final _incomingController = StreamController<List<CanvasMessage>>.broadcast();
+  final _fatalController = StreamController<String>.broadcast();
 
   Timer? _reconnectTimer;
   int _reconnectDelaySecs = 1;
@@ -17,6 +18,9 @@ class SocketService {
 
   // The UI listens to this — receives a batch of messages every tick
   Stream<List<CanvasMessage>> get incoming => _incomingController.stream;
+
+  // Emits a reason string on unrecoverable errors (e.g. 'room_not_found')
+  Stream<String> get fatalErrors => _fatalController.stream;
 
   void connect() {
     if (_disposed) return;
@@ -35,6 +39,12 @@ class SocketService {
         _incomingController.add(messages);
       },
       onDone: () {
+        final closeCode = _channel?.closeCode;
+        if (closeCode == 4004) {
+          print('[socket] Room not found (4004), giving up.');
+          _fatalController.add('room_not_found');
+          return;
+        }
         print('[socket] Disconnected, reconnecting in ${_reconnectDelaySecs}s...');
         _scheduleReconnect();
       },
@@ -76,5 +86,6 @@ class SocketService {
     _reconnectTimer?.cancel();
     _channel?.sink.close();
     _incomingController.close();
+    _fatalController.close();
   }
 }

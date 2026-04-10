@@ -62,7 +62,11 @@ Router buildRouter() {
 
   router.get('/ws/<code>', (Request req, String code) {
     final room = RoomManager.instance.find(code);
-    if (room == null) return Response.notFound('Room not found');
+    if (room == null) {
+      return webSocketHandler((channel) {
+        channel.sink.close(4004, 'Room not found');
+      })(req);
+    }
 
     if (room.clientCount >= ServerConfig.maxClientsPerRoom) {
       return Response(503, body: 'Room is full.', headers: _corsHeaders);

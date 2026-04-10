@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../config.dart';
 import '../protocol/message.dart';
 import '../services/socket_service.dart';
@@ -24,6 +25,16 @@ class _CanvasPageState extends State<CanvasPage> {
     super.initState();
     _socket = SocketService('${Config.wsUrl}/ws/${widget.roomCode}');
     _socket.connect();
+
+    _socket.fatalErrors.listen((reason) {
+      if (!mounted) return;
+      if (reason == 'room_not_found') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Room not found.')),
+        );
+        context.go('/');
+      }
+    });
 
     _socket.incoming.listen((messages) {
       setState(() {
