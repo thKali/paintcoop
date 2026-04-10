@@ -111,7 +111,7 @@ class _RoomCodeBadge extends StatelessWidget {
             tooltip: 'Copy invite link',
             onPressed: () {
               final shareUrl = Uri.base
-                  .replace(path: '/room/$code', queryParameters: {})
+                  .replace(path: '/room/$code', queryParameters: {}, fragment: '')
                   .toString();
               Clipboard.setData(ClipboardData(text: shareUrl));
               ScaffoldMessenger.of(context).showSnackBar(
