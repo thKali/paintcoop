@@ -6,6 +6,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import '../config.dart';
 import '../protocol/message.dart';
 import '../services/room_manager.dart';
+import 'dashboard_handler.dart';
 
 // Tracks how many rooms each IP created within the sliding window
 final _ipCreations = <String, List<DateTime>>{};
@@ -50,6 +51,8 @@ Router buildRouter() {
 
     return _json({'code': room.code, 'private': room.isPrivate});
   });
+
+  router.get('/dashboard', buildDashboardResponse);
 
   router.get('/rooms', (Request req) {
     final rooms = RoomManager.instance.publicRooms().map((r) => {

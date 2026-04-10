@@ -29,6 +29,8 @@ class RoomManager {
   List<Room> publicRooms() =>
       _rooms.values.where((r) => !r.isPrivate).toList();
 
+  List<Room> allRooms() => _rooms.values.toList();
+
   void _cleanup() {
     final now = DateTime.now();
     final expired = <String>[];
