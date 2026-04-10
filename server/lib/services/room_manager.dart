@@ -31,6 +31,14 @@ class RoomManager {
 
   List<Room> allRooms() => _rooms.values.toList();
 
+  bool remove(String code) {
+    final room = _rooms.remove(code.toUpperCase());
+    if (room == null) return false;
+    room.dispose();
+    print('[room] Removed by dashboard: $code');
+    return true;
+  }
+
   void _cleanup() {
     final now = DateTime.now();
     final expired = <String>[];

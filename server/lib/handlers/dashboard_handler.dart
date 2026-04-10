@@ -20,6 +20,19 @@ String _randomSecret() {
   return List.generate(16, (_) => chars[rng.nextInt(chars.length)]).join();
 }
 
+Response deleteDashboardRoom(Request req, String code) {
+  final authHeader = req.headers['authorization'] ?? '';
+  if (!_checkBasicAuth(authHeader)) {
+    return Response(401, headers: {
+      'WWW-Authenticate': 'Basic realm="paintcoop dashboard"',
+      'Content-Type': 'text/plain',
+    }, body: 'Unauthorized');
+  }
+  final removed = RoomManager.instance.remove(code);
+  if (!removed) return Response(404, body: 'Room not found');
+  return Response(303, headers: {'Location': '/dashboard'});
+}
+
 Response buildDashboardResponse(Request req) {
   final authHeader = req.headers['authorization'] ?? '';
   if (!_checkBasicAuth(authHeader)) {
@@ -69,6 +82,9 @@ Response buildDashboardResponse(Request req) {
     .empty { color: #444; }
     .ts { color: #555; font-size: 0.75rem; }
     footer { margin-top: 24px; color: #333; font-size: 0.72rem; }
+    .del { background: none; border: 1px solid #3a1a1a; color: #a04040; border-radius: 4px;
+           padding: 2px 8px; cursor: pointer; font-family: monospace; font-size: 0.75rem; }
+    .del:hover { background: #3a1a1a; color: #e06060; }
   </style>
 </head>
 <body>
@@ -94,6 +110,7 @@ Response buildDashboardResponse(Request req) {
         <th>World state</th>
         <th>Age</th>
         <th>Empty since</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -132,6 +149,7 @@ String _roomRow(Room r, DateTime now) {
         <td>${r.worldState.length} events</td>
         <td class="ts">$age ago</td>
         <td class="ts">${emptyAt != null ? '${_ago(emptyAt, now)} ago' : 'occupied'}</td>
+        <td><form method="POST" action="/dashboard/rooms/${r.code}/delete" onsubmit="return confirm('Delete room ${r.code}?')"><button class="del">delete</button></form></td>
       </tr>''';
 }
 

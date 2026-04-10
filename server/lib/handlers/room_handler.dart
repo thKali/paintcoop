@@ -53,6 +53,7 @@ Router buildRouter() {
   });
 
   router.get('/dashboard', buildDashboardResponse);
+  router.post('/dashboard/rooms/<code>/delete', deleteDashboardRoom);
 
   router.get('/rooms', (Request req) {
     final rooms = RoomManager.instance.publicRooms().map((r) => {

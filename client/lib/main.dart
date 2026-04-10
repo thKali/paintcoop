@@ -31,7 +31,7 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'VectorStream',
+      title: 'paintcoop',
       theme: ThemeData.dark(),
       routerConfig: _router,
     );

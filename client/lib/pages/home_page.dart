@@ -1,5 +1,8 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../config.dart';
 import '../models/room.dart';
 import '../services/api_service.dart';
 
@@ -83,11 +86,12 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1A1A1A),
-        title: const Text('VectorStream'),
+        title: const Text('paintcoop'),
       ),
-      body: Padding(
+      body: Stack(children: [
+        Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Join by code
@@ -183,7 +187,17 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-      ),
+        ),
+        Positioned(
+          bottom: 12,
+          right: 16,
+          child: GestureDetector(
+            onTap: () => html.window.open('${Config.apiUrl}/dashboard', '_blank'),
+            child: const Text('·',
+                style: TextStyle(color: Color(0xFF2A2A2A), fontSize: 28)),
+          ),
+        ),
+      ]),
     );
   }
 }
