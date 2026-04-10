@@ -31,6 +31,15 @@ void main() {
       expect(decoded!.type, MessageType.penDown);
     });
 
+    test('erase message round-trips correctly', () {
+      const original = CanvasMessage(type: MessageType.erase, x: 42.5, y: 99.1);
+      final decoded = CanvasMessage.decode(ByteDataHelper.encode(original));
+      expect(decoded, isNotNull);
+      expect(decoded!.type, MessageType.erase);
+      expect(decoded.x, closeTo(42.5, 0.001));
+      expect(decoded.y, closeTo(99.1, 0.001));
+    });
+
     test('cursor message round-trips correctly', () {
       const original = CanvasMessage(type: MessageType.cursor, x: 999.9, y: 1.1);
       final decoded = CanvasMessage.decode(ByteDataHelper.encode(original));
@@ -69,36 +78,55 @@ void main() {
 
     test('count header matches number of messages', () {
       final messages = [
-        const CanvasMessage(type: MessageType.draw, x: 1, y: 2),
-        const CanvasMessage(type: MessageType.draw, x: 3, y: 4),
-        const CanvasMessage(type: MessageType.penDown, x: 0, y: 0),
+        (1, const CanvasMessage(type: MessageType.draw, x: 1, y: 2)),
+        (1, const CanvasMessage(type: MessageType.draw, x: 3, y: 4)),
+        (2, const CanvasMessage(type: MessageType.penDown, x: 0, y: 0)),
       ];
       final frame = encodeWorldState(messages);
       final count = ByteData.sublistView(frame).getUint16(0, Endian.big);
 
       expect(count, 3);
-      expect(frame.length, 2 + 3 * 9);
+      expect(frame.length, 2 + 3 * 11); // 11 bytes per message (clientId 2 + type 1 + x 4 + y 4)
     });
 
     test('all messages survive world state round-trip', () {
       final messages = [
-        const CanvasMessage(type: MessageType.penDown, x: 0, y: 0),
-        const CanvasMessage(type: MessageType.draw, x: 10.0, y: 20.0),
-        const CanvasMessage(type: MessageType.draw, x: 30.0, y: 40.0),
+        (1, const CanvasMessage(type: MessageType.penDown, x: 0, y: 0)),
+        (1, const CanvasMessage(type: MessageType.draw, x: 10.0, y: 20.0)),
+        (2, const CanvasMessage(type: MessageType.draw, x: 30.0, y: 40.0)),
       ];
 
       final frame = encodeWorldState(messages);
       final view = ByteData.sublistView(frame);
       final count = view.getUint16(0, Endian.big);
 
+      // Each broadcast entry: clientId(2) + type(1) + x(4) + y(4) = 11 bytes
       final decoded = [
         for (var i = 0; i < count; i++)
-          CanvasMessage.decode(frame.sublist(2 + i * 9, 2 + (i + 1) * 9))!,
+          CanvasMessage.decode(
+            frame.sublist(2 + i * 11 + 2, 2 + i * 11 + 11), // skip clientId(2) prefix
+          )!,
       ];
 
       expect(decoded[0].type, MessageType.penDown);
       expect(decoded[1].x, closeTo(10.0, 0.001));
       expect(decoded[2].y, closeTo(40.0, 0.001));
+    });
+
+    test('erase event survives world state round-trip', () {
+      final messages = [
+        (3, const CanvasMessage(type: MessageType.erase, x: 55.0, y: 77.0)),
+      ];
+      final frame = encodeWorldState(messages);
+      final view = ByteData.sublistView(frame);
+
+      final clientId = view.getUint16(2, Endian.big);
+      final decoded = CanvasMessage.decode(frame.sublist(4, 13))!;
+
+      expect(clientId, 3);
+      expect(decoded.type, MessageType.erase);
+      expect(decoded.x, closeTo(55.0, 0.001));
+      expect(decoded.y, closeTo(77.0, 0.001));
     });
   });
 }
