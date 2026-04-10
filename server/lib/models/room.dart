@@ -28,7 +28,7 @@ class Room {
       : createdAt = DateTime.now(),
         lastEmptyAt = DateTime.now() {
     _ticker = Timer.periodic(_tickInterval, (_) => _tick());
-    _compressor = Timer.periodic(_compressInterval, (_) => _compress());
+    _compressor = Timer.periodic(_compressInterval, (_) {}); // compression disabled
   }
 
   int get clientCount => clients.length;
@@ -238,7 +238,8 @@ class Room {
               return dx * dx + dy * dy <= eraseR2;
             });
             if (erased) {
-              flushSeg(); // break the stroke here
+              flushSeg(); // emit what we have, then start a new segment
+              segSender = sender; // continue collecting remaining points
             } else {
               seg.add(msg);
             }
