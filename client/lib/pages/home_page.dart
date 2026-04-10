@@ -14,6 +14,7 @@ class _HomePageState extends State<HomePage> {
   final _codeController = TextEditingController();
   List<Room> _publicRooms = [];
   bool _loadingRooms = false;
+  GoRouter? _router;
 
   @override
   void initState() {
@@ -22,7 +23,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.of(context);
+    if (_router != router) {
+      _router?.removeListener(_onRouteChange);
+      _router = router;
+      _router!.addListener(_onRouteChange);
+    }
+  }
+
+  void _onRouteChange() {
+    if (!mounted) return;
+    final path =
+        _router?.routerDelegate.currentConfiguration.uri.path;
+    if (path == '/') _loadRooms();
+  }
+
+  @override
   void dispose() {
+    _router?.removeListener(_onRouteChange);
     _codeController.dispose();
     super.dispose();
   }
