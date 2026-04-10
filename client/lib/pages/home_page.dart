@@ -27,22 +27,21 @@ class _HomePageState extends State<HomePage> {
     super.didChangeDependencies();
     final router = GoRouter.of(context);
     if (_router != router) {
-      _router?.removeListener(_onRouteChange);
+      _router?.routerDelegate.removeListener(_onRouteChange);
       _router = router;
-      _router!.addListener(_onRouteChange);
+      _router!.routerDelegate.addListener(_onRouteChange);
     }
   }
 
   void _onRouteChange() {
     if (!mounted) return;
-    final path =
-        _router?.routerDelegate.currentConfiguration.uri.path;
+    final path = _router?.routerDelegate.currentConfiguration.uri.path;
     if (path == '/') _loadRooms();
   }
 
   @override
   void dispose() {
-    _router?.removeListener(_onRouteChange);
+    _router?.routerDelegate.removeListener(_onRouteChange);
     _codeController.dispose();
     super.dispose();
   }
