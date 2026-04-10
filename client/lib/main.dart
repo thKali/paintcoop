@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
 import 'pages/canvas_page.dart';
 import 'pages/home_page.dart';
@@ -20,6 +21,7 @@ final _router = GoRouter(
 );
 
 void main() {
+  usePathUrlStrategy();
   runApp(const App());
 }
 
