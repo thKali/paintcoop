@@ -80,6 +80,8 @@ class Room {
           flushStroke();
           compressed.add(entry);
         case MessageType.cursor:
+        case MessageType.join:
+        case MessageType.leave:
           break; // ephemeral, drop
       }
     }
@@ -92,6 +94,14 @@ class Room {
     print('[compress] room $code: $before → ${history.length} events');
   }
 
+  void _broadcastNow(List<(int, CanvasMessage)> events) {
+    if (events.isEmpty || clients.isEmpty) return;
+    final frame = encodeWorldState(events);
+    for (final client in clients.values) {
+      client.sink.add(frame);
+    }
+  }
+
   int addClient(WebSocketChannel client) {
     final clientId = _nextClientId++;
     clients[clientId] = client;
@@ -101,6 +111,8 @@ class Room {
       client.sink.add(encodeWorldState(history));
     }
 
+    _broadcastNow([(clientId, CanvasMessage(type: MessageType.join, x: clientCount.toDouble(), y: 0))]);
+
     return clientId;
   }
 
@@ -109,6 +121,7 @@ class Room {
     if (clients.isEmpty) {
       lastEmptyAt = DateTime.now();
     }
+    _broadcastNow([(clientId, CanvasMessage(type: MessageType.leave, x: clientCount.toDouble(), y: 0))]);
   }
 
   void receive(int clientId, CanvasMessage message) {

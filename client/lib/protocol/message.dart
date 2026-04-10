@@ -5,7 +5,9 @@ enum MessageType {
   cursor(0x02),
   clear(0x03),
   penDown(0x04), // marks the start of a new stroke
-  erase(0x05); // eraser drag — (x, y) = center of eraser circle
+  erase(0x05), // eraser drag — (x, y) = center of eraser circle
+  join(0x06), // player joined — x = new total player count
+  leave(0x07); // player left — x = new total player count
 
   final int byte;
   const MessageType(this.byte);

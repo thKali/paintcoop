@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -16,11 +17,21 @@ class CanvasPage extends StatefulWidget {
   State<CanvasPage> createState() => _CanvasPageState();
 }
 
+class _PlayerNotif {
+  final int id;
+  final String text;
+  final Color color;
+  _PlayerNotif(this.id, this.text, this.color);
+}
+
 class _CanvasPageState extends State<CanvasPage> {
   late final SocketService _socket;
   final List<(int senderId, List<Offset> points)> _strokes = [];
   bool _codeVisible = false;
   Offset? _erasePosition;
+  int _playerCount = 0;
+  final List<_PlayerNotif> _notifs = [];
+  var _notifCounter = 0;
 
   static const _eraseRadius = 20.0;
 
@@ -52,9 +63,24 @@ class _CanvasPageState extends State<CanvasPage> {
             _applyErase(msg.senderId, msg.x, msg.y);
           } else if (msg.type == MessageType.clear) {
             _strokes.removeWhere((s) => s.$1 == msg.senderId);
+          } else if (msg.type == MessageType.join) {
+            _playerCount = msg.x.toInt();
+            _addNotif('Player entrou', _colorForSender(msg.senderId));
+          } else if (msg.type == MessageType.leave) {
+            _playerCount = msg.x.toInt();
+            _addNotif('Player saiu', _colorForSender(msg.senderId));
           }
         }
       });
+    });
+  }
+
+  void _addNotif(String text, Color color) {
+    final id = _notifCounter++;
+    _notifs.add(_PlayerNotif(id, text, color));
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      if (!mounted) return;
+      setState(() => _notifs.removeWhere((n) => n.id == id));
     });
   }
 
@@ -96,6 +122,7 @@ class _CanvasPageState extends State<CanvasPage> {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
     return Scaffold(
       body: Stack(
         children: [
@@ -137,6 +164,28 @@ class _CanvasPageState extends State<CanvasPage> {
             ),
           ),
 
+          // Player counter — top center
+          Positioned(
+            top: topPad + 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _PlayerCountBadge(count: _playerCount),
+            ),
+          ),
+
+          // Join/leave notifications — below player counter, centered
+          Positioned(
+            top: topPad + 56,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: _notifs
+                  .map((n) => _NotifPill(text: n.text, color: n.color))
+                  .toList(),
+            ),
+          ),
+
           // Clear-my-strokes button — bottom right
           Positioned(
             bottom: 20,
@@ -161,7 +210,7 @@ class _CanvasPageState extends State<CanvasPage> {
 
           // Room code overlay — top right
           Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
+            top: topPad + 12,
             right: 12,
             child: _RoomCodeBadge(
               code: widget.roomCode,
@@ -171,6 +220,104 @@ class _CanvasPageState extends State<CanvasPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlayerCountBadge extends StatelessWidget {
+  final int count;
+
+  const _PlayerCountBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+      child: Container(
+        key: ValueKey(count),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.people, size: 14, color: Colors.white54),
+            const SizedBox(width: 5),
+            Text(
+              '$count',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotifPill extends StatefulWidget {
+  final String text;
+  final Color color;
+
+  const _NotifPill({required this.text, required this.color});
+
+  @override
+  State<_NotifPill> createState() => _NotifPillState();
+}
+
+class _NotifPillState extends State<_NotifPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.color.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              widget.text,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }
