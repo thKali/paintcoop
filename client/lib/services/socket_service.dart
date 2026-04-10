@@ -86,6 +86,11 @@ class SocketService {
     _channel?.sink.add(message.encode());
   }
 
+  void sendClear() {
+    final message = CanvasMessage(type: MessageType.clear, x: 0, y: 0);
+    _channel?.sink.add(message.encode());
+  }
+
   void disconnect() {
     _disposed = true;
     _reconnectTimer?.cancel();

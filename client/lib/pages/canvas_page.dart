@@ -50,6 +50,8 @@ class _CanvasPageState extends State<CanvasPage> {
             if (idx >= 0) _strokes[idx].$2.add(Offset(msg.x, msg.y));
           } else if (msg.type == MessageType.erase) {
             _applyErase(msg.senderId, msg.x, msg.y);
+          } else if (msg.type == MessageType.clear) {
+            _strokes.removeWhere((s) => s.$1 == msg.senderId);
           }
         }
       });
@@ -130,6 +132,28 @@ class _CanvasPageState extends State<CanvasPage> {
                   color: Colors.black,
                   width: double.infinity,
                   height: double.infinity,
+                ),
+              ),
+            ),
+          ),
+
+          // Clear-my-strokes button — bottom right
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: Tooltip(
+              message: 'Apagar meus traços',
+              child: GestureDetector(
+                onTap: () => _socket.sendClear(),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(Icons.delete_outline, color: Colors.white70, size: 22),
                 ),
               ),
             ),
