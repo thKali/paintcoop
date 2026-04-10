@@ -81,6 +81,11 @@ class SocketService {
     _channel?.sink.add(message.encode());
   }
 
+  void sendErase(double x, double y) {
+    final message = CanvasMessage(type: MessageType.erase, x: x, y: y);
+    _channel?.sink.add(message.encode());
+  }
+
   void disconnect() {
     _disposed = true;
     _reconnectTimer?.cancel();

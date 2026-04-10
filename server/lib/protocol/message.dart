@@ -4,7 +4,8 @@ enum MessageType {
   draw(0x01),
   cursor(0x02),
   clear(0x03),
-  penDown(0x04); // marks the start of a new stroke
+  penDown(0x04), // marks the start of a new stroke
+  erase(0x05); // eraser drag — (x, y) = center of eraser circle
 
   final int byte;
   const MessageType(this.byte);

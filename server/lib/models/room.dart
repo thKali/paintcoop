@@ -43,32 +43,20 @@ class Room {
     worldState.clear();
   }
 
-  // Groups history into strokes, runs Douglas-Peucker on each, re-flattens
+  // Groups history into strokes, runs Douglas-Peucker on each, re-flattens.
+  // Non-stroke events (erase, clear) are passed through unchanged.
   void _compress() {
     if (history.length < 100) return;
 
     final before = history.length;
-
-    // Split into strokes by penDown markers
-    final strokes = <List<(int, CanvasMessage)>>[];
-    for (final entry in history) {
-      if (entry.$2.type == MessageType.penDown) {
-        strokes.add([entry]);
-      } else if (strokes.isNotEmpty) {
-        strokes.last.add(entry);
-      }
-    }
-
-    // Compress draw points within each stroke
     final compressed = <(int, CanvasMessage)>[];
-    for (final stroke in strokes) {
-      if (stroke.isEmpty) continue;
+    var currentStroke = <(int, CanvasMessage)>[];
 
-      final senderId = stroke.first.$1;
-      final draws = stroke.skip(1).map((e) => e.$2).toList();
-
-      compressed.add(stroke.first); // keep penDown
-
+    void flushStroke() {
+      if (currentStroke.isEmpty) return;
+      final senderId = currentStroke.first.$1;
+      final draws = currentStroke.skip(1).map((e) => e.$2).toList();
+      compressed.add(currentStroke.first); // penDown
       if (draws.length < 3) {
         compressed.addAll(draws.map((m) => (senderId, m)));
       } else {
@@ -77,7 +65,25 @@ class Room {
               .map((m) => (senderId, m)),
         );
       }
+      currentStroke.clear();
     }
+
+    for (final entry in history) {
+      switch (entry.$2.type) {
+        case MessageType.penDown:
+          flushStroke();
+          currentStroke.add(entry);
+        case MessageType.draw:
+          if (currentStroke.isNotEmpty) currentStroke.add(entry);
+        case MessageType.erase:
+        case MessageType.clear:
+          flushStroke();
+          compressed.add(entry);
+        case MessageType.cursor:
+          break; // ephemeral, drop
+      }
+    }
+    flushStroke();
 
     history
       ..clear()
@@ -107,7 +113,10 @@ class Room {
 
   void receive(int clientId, CanvasMessage message) {
     worldState.add((clientId, message));
-    history.add((clientId, message));
+    // Cursor events are ephemeral — no need to replay them to new clients
+    if (message.type != MessageType.cursor) {
+      history.add((clientId, message));
+    }
 
     // Hard cap — compress immediately if we hit the ceiling
     if (history.length >= _historyCap) _compress();
