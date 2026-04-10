@@ -69,8 +69,8 @@ Router buildRouter() {
     }
 
     final wsHandler = webSocketHandler((channel) {
-      room.addClient(channel);
-      print('[+] Client joined room $code. Total: ${room.clientCount}');
+      final clientId = room.addClient(channel);
+      print('[+] Client $clientId joined room $code. Total: ${room.clientCount}');
 
       var messageCount = 0;
       var windowStart = DateTime.now();
@@ -97,13 +97,13 @@ Router buildRouter() {
           final message = CanvasMessage.decode(data);
           if (message == null) return;
 
-          room.receive(message);
+          room.receive(clientId, message);
         },
         onDone: () {
-          room.removeClient(channel);
-          print('[-] Client left room $code. Total: ${room.clientCount}');
+          room.removeClient(clientId);
+          print('[-] Client $clientId left room $code. Total: ${room.clientCount}');
         },
-        onError: (_) => room.removeClient(channel),
+        onError: (_) => room.removeClient(clientId),
       );
     });
 
